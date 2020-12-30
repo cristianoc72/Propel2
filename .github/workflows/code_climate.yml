@@ -1,0 +1,195 @@
+name: Codeclimate Coverage Report
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+    agnostic-tests:
+        runs-on: ubuntu-18.04
+        steps:
+            -   name: Setup PHP, with composer and extensions
+                uses: shivammathur/setup-php@v2
+                with:
+                    php-version: ${{ matrix.php-version }}
+                    extensions: json, libxml, pdo, pdo_mysql, pdo_sqlite, pdo_pgsql, sqlite3
+                    coverage: pcov
+
+            -   name: Checkout
+                uses: actions/checkout@v2
+
+            -   name: Composer get cache directory
+                id: composer-cache
+                run: echo "::set-output name=dir::$(composer config cache-files-dir)"
+
+            -   name: Composer cache dependencies
+                uses: actions/cache@v1
+                with:
+                    path: ${{ steps.composer-cache.outputs.dir }}
+                    key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.json') }}
+                    restore-keys: ${{ runner.os }}-composer-
+
+            -   name: Composer install
+                run: composer install --no-progress --prefer-dist --optimize-autoloader
+
+            -   name: Run agnostic tests
+                run: vendor/bin/phpunit -c tests/agnostic.phpunit.xml --coverage-clover=tests/agnostic-coverage.xml
+
+            -   name: Save agnostic coverage report
+                uses: actions/upload-artifact@v2
+                with:
+                    path: tests/agnostic-coverage.xml
+
+    pgsql-tests:
+        runs-on: ubuntu-18.04
+        steps:
+            -   name: Install PostgreSQL latest
+                uses: CasperWA/postgresql-action@v1.2
+                with:
+                    postgresql db: 'propel-tests'
+                    postgresql user: 'postgres'
+                    postgresql password: 'postgres'
+
+            -   name: Setup PHP, with composer and extensions
+                uses: shivammathur/setup-php@v2
+                with:
+                  php-version: ${{ matrix.php-version }}
+                  extensions: json, libxml, pdo, pdo_mysql, pdo_sqlite, pdo_pgsql, sqlite3
+                  coverage: pcov
+
+            -   name: Checkout
+                uses: actions/checkout@v2
+
+            -   name: Composer get cache directory
+                id: composer-cache
+                run: echo "::set-output name=dir::$(composer config cache-files-dir)"
+
+            -   name: Composer cache dependencies
+                uses: actions/cache@v1
+                with:
+                  path: ${{ steps.composer-cache.outputs.dir }}
+                  key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.json') }}
+                  restore-keys: ${{ runner.os }}-composer-
+
+            -   name: Composer install
+                run: composer install --no-progress --prefer-dist --optimize-autoloader
+
+            -   name: Setup Postgresql database for test suite
+                run: tests/bin/setup.pgsql.sh
+                env:
+                    PGPASSWORD: 'postgres'
+                    DB_NAME: 'propel-tests'
+                    DB_USER: 'postgres'
+                    DB_PW: 'postgres'
+
+            -   name: Run PostgreSQL tests
+                run: vendor/bin/phpunit -c tests/pgsql.phpunit.xml --coverage-clover=tests/pgsql-coverage.xml
+                env:
+                  DB_NAME: 'propel-tests'
+                  DB_USER: 'postgres'
+                  DB_PW: 'postgres'
+
+            -   name: Save Postgresql coverage report
+                uses: actions/upload-artifact@v2
+                with:
+                  path: tests/pgsql-coverage.xml
+
+    mysql-tests:
+        runs-on: ubuntu-18.04
+        steps:
+            -   name: Install MariaDb latest
+                uses: getong/mariadb-action@v1.1
+
+            -   name: Setup PHP, with composer and extensions
+                uses: shivammathur/setup-php@v2
+                with:
+                    php-version: ${{ matrix.php-version }}
+                    extensions: json, libxml, pdo, pdo_mysql, pdo_sqlite, pdo_pgsql, sqlite3
+                    coverage: pcov
+
+            -   name: Checkout
+                uses: actions/checkout@v2
+
+            -   name: Composer get cache directory
+                id: composer-cache
+                run: echo "::set-output name=dir::$(composer config cache-files-dir)"
+
+            -   name: Composer cache dependencies
+                uses: actions/cache@v1
+                with:
+                    path: ${{ steps.composer-cache.outputs.dir }}
+                    key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.json') }}
+                    restore-keys: ${{ runner.os }}-composer-
+
+            -   name: Composer install
+                run: composer install --no-progress --prefer-dist --optimize-autoloader
+
+            -   name: Setup the database for test suite
+                run: tests/bin/setup.mysql.sh
+
+            -   name: Run mysql tests
+                run: vendor/bin/phpunit -c tests/mysql.phpunit.xml --coverage-clover=tests/mysql-coverage.xml
+
+            -   name: Save mysql coverage report
+                uses: actions/upload-artifact@v2
+                with:
+                    path: tests/mysql-coverage.xml
+
+    sqlite-tests:
+        runs-on: ubuntu-18.04
+        steps:
+            -   name: Setup PHP, with composer and extensions
+                uses: shivammathur/setup-php@v2
+                with:
+                    php-version: ${{ matrix.php-version }}
+                    extensions: json, libxml, pdo, pdo_mysql, pdo_sqlite, pdo_pgsql, sqlite3
+                    coverage: pcov
+
+            -   name: Checkout
+                uses: actions/checkout@v2
+
+            -   name: Composer get cache directory
+                id: composer-cache
+                run: echo "::set-output name=dir::$(composer config cache-files-dir)"
+
+            -   name: Composer cache dependencies
+                uses: actions/cache@v1
+                with:
+                    path: ${{ steps.composer-cache.outputs.dir }}
+                    key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.json') }}
+                    restore-keys: ${{ runner.os }}-composer-
+
+            -   name: Composer install
+                run: composer install --no-progress --prefer-dist --optimize-autoloader
+
+            -   name: Setup the database for test suite
+                run: tests/bin/setup.sqlite.sh
+
+            -   name: Run sqlite tests
+                run: vendor/bin/phpunit -c tests/mysql.sqlite.xml --coverage-clover=tests/sqlite-coverage.xml
+
+            -   name: Save sqlite coverage report
+                uses: actions/upload-artifact@v2
+                with:
+                    path: tests/sqlite-coverage.xml
+
+    upload-reports:
+        runs-on: ubuntu-18.04
+        needs: [ agnostic-tests, pgsql-tests, mysql-tests, sqlite-tests ]
+        steps:
+            -   name: Dowload coverage reports
+                uses: actions/download-artifact@v2
+                with:
+                    path: reports/
+
+            - name: Upload Coverage reports
+              uses: paambaati/codeclimate-action@v2.7.5
+              env:
+                  CC_TEST_REPORTER_ID: ${{secrets.CC_TEST_REPORTER_ID}}
+              with:
+                  coverageLocations: |
+                      ${{github.workspace}}/reports/agnostic-coverage.xml:clover
+                      ${{github.workspace}}/reports/pgsql-coverage.xml:clover
+                      ${{github.workspace}}/reports/mysql-coverage.xml:clover
+                      ${{github.workspace}}/reports/sqlite-coverage.xml:clover
