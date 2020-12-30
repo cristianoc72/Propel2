@@ -93,7 +93,7 @@ jobs:
             -   name: Save Postgresql coverage report
                 uses: actions/upload-artifact@v2
                 with:
-                  path: tests/pgsql-coverage.xml
+                    path: tests/pgsql-coverage.xml
 
     mysql-tests:
         runs-on: ubuntu-18.04
